@@ -25,21 +25,26 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         """Remove random ids from the explained query plan"""
         pattern = re.compile(r'\(.*\)|\*\ ')
         op = re.sub(pattern, '', op)
-        if 'Scan' in op:
-            return 'Scan'
-        else:
-            return op
+        # if 'Scan' in op:
+        #     return 'Scan'
+        # else:
+        return op
 
     def __get_col_name(self, benchmark) -> list[str]:
         with open('./benchmark/schemas/' + benchmark + '.sql', 'r') as schema_text:
             col_name_list = []
             lines = schema_text.readlines()
-            for line in lines:
-                if 'USING' not in line and line != '\n':
-                    if 'CREATE' in line:
-                        table_name = line.split()[-2]
-                    else:
-                        col_name_list.append('job.' + table_name + '.' + line.split()[0])
+            if benchmark == 'job':
+                for line in lines:
+                    if 'USING' not in line and line != '\n':
+                        if 'CREATE' in line:
+                            table_name = line.split()[-2]
+                        else:
+                            col_name_list.append('job.' + table_name + '.' + line.split()[0])
+            elif benchmark == 'job':
+                for line in lines:
+                    if 'USING' not in line and 'create' not in line != '\n':
+                        col_name_list.append(line.split()[0])
             return col_name_list
     
     def __featurize_not_null_operator(self, node):
@@ -75,7 +80,6 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
     def __plan2tree(self, plan):
         if 'Subqueries' in plan:
             return None
-        logger.info('Processing plan: %s', plan)
         lines = plan.split('\n')
         node_num = eval(lines[1].split()[-1])
         tree = [None] * (node_num + 1)
@@ -156,9 +160,14 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
     def transform(self, trees) -> list:
         forest = []
         for i in range(len(trees)):
-            logger.info(f'Processing plan {i}...')
             tree = self.__plan2tree(trees[i])
             if tree is not None:
-                featurized_tree = self.__featurize(tree, tree[0].lc)
+                try:
+                    featurized_tree = self.__featurize(tree, tree[0].lc)
+                except:
+                    logger.error(f'Error in plan {i}')
+                    continue
                 forest.append(featurized_tree)
+            else :
+                logger.warning(f'Plan {i} has subqueries, ignored')
         return forest    

@@ -91,12 +91,12 @@ def _evaluate_prediction(y, predictions, plans, query_path, is_training) -> Perf
 
     # evaluate performance gains with Bao
     performance_from_model = y[min_prediction_index]
-    logger.info('best choice -> %s', str(y[0] / default_plan.walltime))
+    logger.info('best choice -> %s: disabled rules: %s', str(y[0] / default_plan.walltime), plans[0].disabled_rules)
 
     if performance_from_model < default_plan.walltime:
-        logger.info('good choice -> %s', str(performance_from_model / default_plan.walltime))
+        logger.info('good choice -> %s: disabled rules: %s', str(performance_from_model / default_plan.walltime), plans[min_prediction_index].disabled_rules)
     else:
-        logger.info('bad choice -> %s', str(performance_from_model / default_plan.walltime))
+        logger.info('bad choice -> %s: disabled rules: %s', str(performance_from_model / default_plan.walltime), plans[min_prediction_index].disabled_rules)
 
     # The best **alternative** query plan is either the first or the second one
     best_alt_plan_walltime = plans[0].walltime if plans[0].num_disabled_rules > 0 else plans[1].walltime
