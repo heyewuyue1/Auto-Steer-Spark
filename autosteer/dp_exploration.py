@@ -52,8 +52,7 @@ def execute_hint_set(config: HintSetExploration, connector: connectors.connector
             timed_result = connector.execute(sql_query)
         # pylint: disable=broad-except
         except Exception as e:
-            logger.fatal('Optimizer %s cannot be disabled for %s because the execution exceeded the time limit of 60s - skip this config. ', config.get_disabled_opts_rules(), query_path)
-            storage.register_measurement(query_path, config.get_disabled_opts_rules(), walltime=120 * 1_000_000, input_data_size=0, nodes=1)
+            logger.fatal('Optimizer %s cannot be disabled for %s  - skip this config. Error: %s', config.get_disabled_opts_rules(), query_path, e)
             break
 
         if register_query_config_and_measurement(query_path, config.get_disabled_opts_rules(), query_plan, timed_result):

@@ -3,7 +3,7 @@ import re
 import numpy as np
 from utils.custom_logging import logger
 from inference.preprocessing.node import Node
-
+from utils.config import read_config
 import os
 import pickle
 
@@ -41,7 +41,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                             table_name = line.split()[-2]
                         else:
                             col_name_list.append('job.' + table_name + '.' + line.split()[0])
-            elif benchmark == 'job':
+            elif benchmark == 'tpcds':
                 for line in lines:
                     if 'USING' not in line and 'create' not in line != '\n':
                         col_name_list.append(line.split()[0])
@@ -73,12 +73,14 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         return np.concatenate((arr, stat))
 
     def __featurize(self, tree, i):
+        logger.debug(f'Featurizing node {i} {tree[i].operator}')
         return self.__featurize_not_null_operator(tree[i]),\
         self.__featurize(tree, tree[i].lc) if tree[i].lc is not None else self.__featurize_null_operator(),\
         self.__featurize(tree, tree[i].rc) if tree[i].rc is not None else self.__featurize_null_operator()
 
     def __plan2tree(self, plan):
         if 'Subqueries' in plan:
+            # logger.warning(f'Contain Subqueries, ignored, raw plan: {plan}')
             return None
         lines = plan.split('\n')
         node_num = eval(lines[1].split()[-1])
@@ -109,8 +111,8 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                     cur_node = eval(line.split()[0])
                     reused_op_id = eval(line.split(': ')[-1][:-1]) if 'Reused' in line else 0
                     if reused_op_id != 0:
-                        tree[cur_node].lc = tree[reused_op_id].lc
-                        tree[cur_node].rc = tree[reused_op_id].rc
+                        # tree[cur_node].lc = tree[reused_op_id].lc
+                        # tree[cur_node].rc = tree[reused_op_id].rc
                         tree[cur_node].operator = tree[reused_op_id].operator
                         tree[cur_node].data = tree[reused_op_id].data
                 else:
@@ -123,6 +125,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
 
     def __init__(self):
         super().__init__()
+        self.benchmark = read_config()['DEFAULT']['BENCHMARK']
         self.op_list, self.column_list = [], []
         if os.path.isfile('./data/forest.pkl'):
             logger.info('__init__: loading forest...')
@@ -130,7 +133,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                 forest = pickle.load(f)
                 logger.info('Loaded forest')
                 self.op_list = self.__get_op(forest)
-                self.column_list = self.__get_col_name('job')
+                self.column_list = self.__get_col_name(self.benchmark)
                 logger.info(f'Get op_list: {self.op_list}')
                 logger.info(f'Get column_list: {self.column_list}')
                 logger.info(f'Feature length: {len(self.op_list) + len(self.column_list)}')
@@ -141,17 +144,18 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         if not os.path.isfile('./data/forest.pkl'):
             logger.info('Building forest...')
             forest = []
-            for text in trees:
-                tree = self.__plan2tree(text)
+            for i in range(len(trees)):
+                logger.debug(f'Processing plan {i}')
+                tree = self.__plan2tree(trees[i])
                 if tree is not None:
                     forest.append(tree)
-                with open('./data/forest.pkl', 'wb') as f:
-                    pickle.dump(forest, f)
+            with open('./data/forest.pkl', 'wb') as f:
+                pickle.dump(forest, f)
         with open('./data/forest.pkl', 'rb') as f:
             logger.info('fit: loading forest...')
             forest = pickle.load(f)
             self.op_list = self.__get_op(forest)
-            self.column_list = self.__get_col_name('job')
+            self.column_list = self.__get_col_name(self.benchmark)
             logger.info(f'Get op_list: {self.op_list}')
             logger.info(f'Get column_list: {self.column_list}')
             logger.info(f'Feature length: {len(self.op_list) + len(self.column_list)}')
@@ -160,14 +164,13 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
     def transform(self, trees) -> list:
         forest = []
         for i in range(len(trees)):
+            logger.debug(f'Processing plan {i}')
             tree = self.__plan2tree(trees[i])
             if tree is not None:
                 try:
                     featurized_tree = self.__featurize(tree, tree[0].lc)
-                except:
-                    logger.error(f'Error in plan {i}')
+                except Exception as e:
+                    logger.error(f'Error in plan {i} message: {e} raw plan: {trees[i]}')
                     continue
                 forest.append(featurized_tree)
-            else :
-                logger.warning(f'Plan {i} has subqueries, ignored')
         return forest    

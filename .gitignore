@@ -1,4 +1,5 @@
-data/
+playground/
+data/*.pkl
 evaluation/
 logs/
 nn/

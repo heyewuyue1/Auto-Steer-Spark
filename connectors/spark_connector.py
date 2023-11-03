@@ -7,31 +7,34 @@ import time
 import re
 from utils.custom_logging import logger
 from connectors.connector import DBConnector
+from utils.config import read_config
 import configparser
 
 EXCLUDED_RULES = 'spark.sql.optimizer.excludedRules'
 
 def _postprocess_plan(plan) -> str:
     """Remove random ids from the explained query plan"""
-    pattern = re.compile(r'\[\d+]||\[plan_id=\d+\]')
-    plan = re.sub(pattern, '', plan)
-    lines = plan.split('\n')
-    is_scan = False
-    replace_dict = {}
-    for line in lines:
-        if line.startswith('(') and 'Scan' in line:
-            table_name = line.split()[-1]
-            is_scan = True
-        if is_scan and 'Output' in line:
-            col_names = line.split('[')[-1][:-1].split(', ')
-            for col_name in col_names:
-                replace_dict[col_name] = table_name + '.' + col_name
-    for key, val in replace_dict.items():
-        plan = plan.replace(key, val)
-    pattern = re.compile(r'#\d+L?')
-    plan = re.sub(pattern, '', plan)
-    logger.debug('Postprocessed plan: %s', plan)
-    return plan
+    # pattern = re.compile(r'\[\d+]||\[plan_id=\d+\]')
+    # plan = re.sub(pattern, '', plan)
+    # lines = plan.split('\n')
+    # is_scan = False
+    # replace_dict = {}
+    # for line in lines:
+    #     if line.startswith('(') and 'Scan' in line:
+    #         table_name = line.split()[-1]
+    #         is_scan = True
+    #     if is_scan and 'Output' in line:
+    #         col_names = line.split('[')[-1][:-1].split(', ')
+    #         for col_name in col_names:
+    #             replace_dict[col_name] = table_name + '.' + col_name
+    # for key, val in replace_dict.items():
+    #     plan = plan.replace(key, val)
+    # pattern = re.compile(r'#\d+L?')
+    # plan = re.sub(pattern, '', plan)
+    # logger.debug('Postprocessed plan: %s', plan)
+    pattern = re.compile(r'#\d+L?|\[\d+]||\[plan_id=\d+\]')
+    return re.sub(pattern, '', plan)
+    # return plan
 
 class SparkConnector(DBConnector):
     """This class implements the AutoSteer-G connector for a Spark cluster accepting SQL statements"""
@@ -50,10 +53,19 @@ class SparkConnector(DBConnector):
         self.cursor = self.conn.cursor()
 
     def execute(self, query) -> DBConnector.TimedResult:
-        begin = time.time_ns()
-        self.cursor.execute(query)
-        collection = self.cursor.fetchall()
-        elapsed_time_usecs = int((time.time_ns() - begin) / 1_000)
+        for i in range(3):
+            try:
+                begin = time.time_ns()
+                self.cursor.execute(query)
+                collection = self.cursor.fetchall()
+                elapsed_time_usecs = int((time.time_ns() - begin) / 1_000)
+                break
+            except:
+                if i == 2:
+                    logger.fatal('Execution failed 3 times.')
+                    raise
+                else:
+                    logger.warning('Execution failed %s times, try again...', str(i + 1))
         logger.info('QUERY RESULT %s', str(collection)[:100] if len(str(collection)) > 100 else collection)
         collection = 'EmptyResult' if len(collection) == 0 else collection[0]
         logger.debug('Hash(QueryResult) = %s', str(hash(str(collection))))

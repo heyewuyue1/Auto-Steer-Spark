@@ -60,7 +60,8 @@ if __name__ == '__main__':
     elif args.training:
         logger.info('Run AutoSteer\'s training mode')
         f_list = sorted(os.listdir(args.benchmark))
-        f_list = f_list[f_list.index('10a.sql'): ]
+        f_list = f_list[f_list.index('081.sql'): ]
+        # f_list = ['007.sql']
         logger.info('Found the following SQL files: %s', f_list)
         for query in tqdm(f_list):
             logger.info('run Q%s...', query)
