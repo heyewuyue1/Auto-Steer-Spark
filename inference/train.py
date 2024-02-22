@@ -99,8 +99,11 @@ def _evaluate_prediction(y, predictions, plans, query_path, is_training) -> Perf
         logger.info('bad choice -> %s: disabled rules: %s', str(performance_from_model / default_plan.walltime), plans[min_prediction_index].disabled_rules)
 
     # The best **alternative** query plan is either the first or the second one
-    best_alt_plan_walltime = plans[0].walltime if plans[0].num_disabled_rules > 0 else plans[1].walltime
-    return PerformancePrediction(default_plan.walltime, plans[min_prediction_index].walltime, best_alt_plan_walltime, query_path, is_training)
+    try:
+        best_alt_plan_walltime = plans[0].walltime if plans[0].num_disabled_rules > 0 else plans[1].walltime
+        return PerformancePrediction(default_plan.walltime, plans[min_prediction_index].walltime, best_alt_plan_walltime, query_path, is_training)
+    except Exception as e:
+        raise e
 
 
 def _choose_best_plans(query_plan_preprocessor, filename: str, test_configs: list[storage.Measurement], is_training: bool) -> list[PerformancePrediction]:
@@ -131,7 +134,10 @@ def _choose_best_plans(query_plan_preprocessor, filename: str, test_configs: lis
         if 'Subqueries' in x[0]:
             continue
         predictions = bao_model.predict(x)
-        performance_prediction = _evaluate_prediction(y, predictions, plans_and_estimates, query_path, is_training)
+        try:
+            performance_prediction = _evaluate_prediction(y, predictions, plans_and_estimates, query_path, is_training)
+        except:
+            continue
         performance_predictions.append(performance_prediction)
     return list(reversed(sorted(performance_predictions, key=lambda entry: entry.selected_plan_relative_improvement)))
 

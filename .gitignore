@@ -2,7 +2,6 @@ playground/
 data/*.pkl
 evaluation/
 logs/
-nn/
 *.dylib
 results/
 *.DS_Store

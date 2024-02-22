@@ -97,22 +97,6 @@ for f_name in sorted(f_list):
         if f_name == '7.plan':
             print(len(forest))
         forest.append(tree)
-        # replace the table name with the alias
-        # replace_map = {}
-        # for node in tree:
-        #     if node is not None:
-        #         if node.operator.startswith('Scan'):
-        #             for key, v in node.data.items():
-        #                 if 'Output' in key:
-        #                     output = v.strip()[1:-1].split(', ')
-        #                     for i in output:
-        #                         replace_map[i] = node.operator.split()[-1].split('.')[-1] + '.' + i.split('#')[0]
-        # for node in tree:
-        #     if node is not None:
-        #         for key in node.data:
-        #             for i in replace_map:
-        #                 if i in node.data[key]:
-        #                     node.data[key] = node.data[key].replace(i, replace_map[i]))
 
 with open('./data/examples/preprocessed.plan', 'w') as file:
     for node in forest[0]:

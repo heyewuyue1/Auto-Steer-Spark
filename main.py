@@ -43,8 +43,8 @@ if __name__ == '__main__':
     args = get_parser().parse_args()
     ConnectorType = SparkConnector
     storage.TESTED_DATABASE = args.database
-    # check_and_load_database('job')
-    # check_and_load_database('tpcds')
+    check_and_load_database('job')
+    check_and_load_database('tpcds')
     if args.benchmark is None or not os.path.isdir(args.benchmark):
         logger.fatal('Cannot access the benchmark directory containing the sql files with path=%s', args.benchmark)
         sys.exit(1)
@@ -60,8 +60,6 @@ if __name__ == '__main__':
     elif args.training:
         logger.info('Run AutoSteer\'s training mode')
         f_list = sorted(os.listdir(args.benchmark))
-        f_list = f_list[f_list.index('081.sql'): ]
-        # f_list = ['007.sql']
         logger.info('Found the following SQL files: %s', f_list)
         for query in tqdm(f_list):
             logger.info('run Q%s...', query)
