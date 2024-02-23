@@ -46,3 +46,4 @@ SimplifyExtractValueOps
 OptimizeCsvJsonExprs
 CombineConcats
 PushdownPredicatesAndPruneColumnsForCTEDef
+ReorderJoin
