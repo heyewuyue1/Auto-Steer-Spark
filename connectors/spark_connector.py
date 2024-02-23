@@ -51,7 +51,7 @@ class SparkConnector(DBConnector):
             except:
                 logger.warning(f'Atempt {i + 1} Failed to connect to thrift server, retrying...')
         self.cursor = self.conn.cursor()
-
+    # 
     def execute(self, query) -> DBConnector.TimedResult:
         for i in range(3):
             try:

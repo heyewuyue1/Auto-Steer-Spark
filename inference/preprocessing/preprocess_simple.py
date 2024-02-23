@@ -123,6 +123,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                         tree[cur_node].data[key] = val
         return tree
 
+# 
     def __init__(self):
         super().__init__()
         self.benchmark = read_config()['DEFAULT']['BENCHMARK']
