@@ -1,10 +1,13 @@
 playground/
 data/*.pkl
-evaluation/*
-logs/*
+evaluation/*.pdf
+evaluation/*.csv
+logs/*.log
+logs/*.code*
 *.dylib
-results/*
+results/*.sqlite
 *.DS_Store
+.metals/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
