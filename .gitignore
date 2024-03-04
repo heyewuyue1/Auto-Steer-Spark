@@ -8,6 +8,7 @@ logs/*.code*
 results/*.sqlite
 *.DS_Store
 .metals/
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

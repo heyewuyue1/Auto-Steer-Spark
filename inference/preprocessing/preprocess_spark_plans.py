@@ -8,6 +8,8 @@ from utils.custom_logging import logger
 from sklearn.preprocessing import LabelEncoder
 from keras.utils import to_categorical
 from inference.preprocessing.node import Node
+from torch import nn
+import torch
 
 import os
 import pickle
@@ -111,26 +113,28 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                     sentence.append(cond[j])
         # logger.info(f'Sentence: {sentence if len(sentence) < 10 else (str(sentence[:10]) + "...")}')
         _s = []
+        embed = nn.Embedding(vocab_size, 64)
         for word in sentence:
             if (is_not_number(word)):
                 if word in self.vocab_dict:
-                    _tmp = np.column_stack((np.array([0]), self.vocab_dict[word]))
-                    _tmp = np.reshape(_tmp, (vocab_size+1))
-                    assert (len(_tmp) == vocab_size+1)
+                    # _tmp = np.column_stack((np.array([0]), self.vocab_dict[word]))
+                    # _tmp = np.reshape(_tmp, (vocab_size+1))
+                    _tmp = embed(torch.tensor(self.vocabulary.index(word)))
+                    # assert (len(_tmp) == vocab_size+1)
                     _s.append(_tmp)
             else:
-                _tmp = np.full((vocab_size+1), word)
-                assert (len(_tmp) == vocab_size+1)
+                _tmp = np.full(64, word)
+                # assert (len(_tmp) == vocab_size+1)
                 _s.append(_tmp)
         sentence = np.array(_s)
         if sentence.shape[0] > self.max_len:
             sentence = sentence[:self.max_len]
         if sentence.shape[0] < self.max_len:
             sentence = np.concatenate((sentence, np.zeros((self.max_len - sentence.shape[0], vocab_size+1))))
-        sentence = sentence.reshape((1, self.max_len, vocab_size+1))
-        intermediate_output = self.intermediate_layer_model.predict(sentence, verbose=0)
-        # logger.info(f'Embedded sequence: {intermediate_output[0]}')
-        return np.concatenate((np.zeros(len(self.op_list) + len(self.column_list) + 1), intermediate_output[0]))
+        sentence = sentence.reshape((1, self.max_len, 64))
+        # intermediate_output = self.intermediate_layer_model.predict(sentence, verbose=0)
+        logger.info(f'Embedded sequence: {sentence}')
+        return np.concatenate((np.zeros(len(self.op_list) + len(self.column_list) + 1), sentence))
 
     def __featurize(self, tree, i):
         if tree[i].operator.startswith('Scan'):
@@ -186,8 +190,6 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
 
     def __init__(self):
         super().__init__()
-        self.leaf_embedding_model = None
-        self.intermediate_layer_model = None
         self.min_max_vals = self.__get_min_max_vals()
         self.vocab_dict = {}
         self.vocabulary = []
@@ -221,10 +223,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         for v, e in zip(self.vocabulary, encoded):
             self.vocab_dict[v] = np.reshape(np.array(e), (1, vocab_size))
         logger.info(f'max_len: {self.max_len}')
-        lem = LeafEmbeddingModel(self.max_len, vocab_size)
-        self.leaf_embedding_model = lem.get_model()
-        self.intermediate_layer_model = Model(inputs=self.leaf_embedding_model.input,
-                                        outputs=self.leaf_embedding_model.layers[4].output)
+
     def fit(self, trees) -> None:
         if not os.path.isfile('./data/forest.pkl'):
             logger.info('Building forest...')

@@ -107,4 +107,5 @@ class SparkConnector(DBConnector):
     def get_plan_preprocessor():
         from inference.preprocessing.preprocess_spark_plans import SparkPlanPreprocessor as complex_preprocessor
         from inference.preprocessing.preprocess_simple import SparkPlanPreprocessor as simple_preprocessor
-        return simple_preprocessor
+        from inference.preprocessing.preprocess_dose import SparkPlanPreprocessor as dose_preprocessor
+        return dose_preprocessor

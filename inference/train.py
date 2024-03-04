@@ -12,6 +12,7 @@ from inference.performance_prediction import PerformancePrediction
 from inference import model
 from inference.net import DROPOUT
 from utils.custom_logging import logger
+from inference.dose import model_q
 
 
 class AutoSteerInferenceException(Exception):
@@ -73,7 +74,8 @@ def _train_and_save_model(preprocessor, filename, x_train, y_train, x_test, y_te
     if len(x_train) < 20:
         logger.warning('Warning: trying to train a TCNN model with fewer than 20 datapoints.')
 
-    regression_model = model.BaoRegressionModel(preprocessor)
+    regression_model = model_q.DoseModel(preprocessor)
+    # regression_model = model.BaoRegressionModel(preprocessor)
     losses = regression_model.fit(x_train, y_train, x_test, y_test)
     regression_model.save(filename)
 
@@ -110,7 +112,8 @@ def _choose_best_plans(query_plan_preprocessor, filename: str, test_configs: lis
     """For each query, let the TCNN predict the performance of all query plans and compare them to the runtime of the default plan"""
 
     # load model
-    bao_model = model.BaoRegressionModel(query_plan_preprocessor)
+    # bao_model = model.BaoRegressionModel(query_plan_preprocessor)
+    bao_model = model_q.DoseModel(query_plan_preprocessor)
     bao_model.load(filename)
 
     # load query plans for prediction

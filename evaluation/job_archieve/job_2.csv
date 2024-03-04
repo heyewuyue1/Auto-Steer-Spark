@@ -1,0 +1,20 @@
+----------------------------------------
+TEST SET
+----------------------------------------
+Overall runtime of default plans: 388660364.0
+Overall runtime of bao selected plans: 283035304.5
+Overall runtime of best hs plans: 165710431.5
+Test improvement rel. w/ Bao: 0.2718
+Test improvement abs. w/ Bao: -105625059.5
+Test improvement rel. of best alternative hs: 0.5736
+Test improvement abs. of best alternative hs: -222949932.5
+----------------------------------------
+TRAINING SET
+----------------------------------------
+Overall runtime of default plans: 1262941670.0
+Overall runtime of bao selected plans: 791657738.5
+Overall runtime of best hs plans: 519663188.5
+Test improvement rel. w/ Bao: 0.3732
+Test improvement abs. w/ Bao: -471283931.5
+Test improvement rel. of best alternative hs: 0.5885
+Test improvement abs. of best alternative hs: -743278481.5

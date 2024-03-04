@@ -1,0 +1,21 @@
+# 区分各种scan
+---------------------------------------
+TEST SET
+----------------------------------------
+Overall runtime of default plans: 256334021.5
+Overall runtime of bao selected plans: 134056865.5
+Overall runtime of best hs plans: 132711016.0
+Test improvement rel. w/ Bao: 0.4770
+Test improvement abs. w/ Bao: -122277156.0
+Test improvement rel. of best alternative hs: 0.4823
+Test improvement abs. of best alternative hs: -123623005.5
+----------------------------------------
+TRAINING SET
+----------------------------------------
+Overall runtime of default plans: 1395268012.5
+Overall runtime of bao selected plans: 786728957.0
+Overall runtime of best hs plans: 552662604.0
+Test improvement rel. w/ Bao: 0.4361
+Test improvement abs. w/ Bao: -608539055.5
+Test improvement rel. of best alternative hs: 0.6039
+Test improvement abs. of best alternative hs: -842605408.5

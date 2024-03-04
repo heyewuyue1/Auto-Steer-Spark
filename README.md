@@ -31,12 +31,12 @@ config file is `config.cfg`. refrences below
 
 - run taining mode(example)
 ```commandline
-python main.py --training --database job --benchmark ./benchmark/queries/job
+python main.py --training --database tpcds --benchmark ./benchmark/queries/tpcds
 ```
 
 - run inference mode(example)
 ```commandline
-python main.py --inference --database job --benchmark benchmark/queries/job
+python main.py --inference --database tpcds --benchmark benchmark/queries/tpcds --retrain
 ```
 
 

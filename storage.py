@@ -133,7 +133,6 @@ def experience(benchmark=None, training_ratio=0.8):
     with _db() as conn:
         benchmark = '%%' if benchmark is None else '%%' + benchmark + '%%'
         df = pd.read_sql(stmt, conn, params={'benchmark': benchmark})
-        print(df)
     rows = [Measurement(*row) for _, row in df.iterrows()]
 
     # Group training and test data by query
