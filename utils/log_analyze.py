@@ -1,4 +1,4 @@
-with open('logs/0312/20240312_inference.log') as f:
+with open('logs/2024-03-20-16-59-52.log') as f:
     lines = f.readlines()
     best_possible = 0
     default = 0

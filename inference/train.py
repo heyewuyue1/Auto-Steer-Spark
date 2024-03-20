@@ -29,9 +29,7 @@ def _load_data(bench=None, training_ratio=0.8):
     x_test = [config.plan_json for config in test_data]
     y_test = [config.walltime for config in test_data]
 
-    # return np.concatenate((x_train, y_train)), np.concatenate((x_train, y_train)), x_test, y_test, training_data, test_data
-    # print(x_test, y_test)
-    return x_train + x_test, y_train + y_test, x_test, y_test, training_data, test_data
+    return x_train, y_train, x_test, y_test, training_data, test_data
 
 
 def _serialize_data(directory, x_train, y_train, x_test, y_test, training_configs, test_configs):
@@ -136,8 +134,6 @@ def _choose_best_plans(query_plan_preprocessor, filename: str, test_configs: lis
         logger.info('Preprocess data for query %s', plans_and_estimates[0].query_path)
         x = [x.plan_json for x in plans_and_estimates]
         y = [x.walltime for x in plans_and_estimates]
-        if 'Subqueries' in x[0]:
-            continue
         predictions = bao_model.predict(x)
         try:
             performance_prediction = _evaluate_prediction(y, predictions, plans_and_estimates, query_path, is_training)

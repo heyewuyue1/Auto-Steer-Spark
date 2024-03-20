@@ -146,7 +146,7 @@ def experience(benchmark=None, training_ratio=0.8):
     keys = list(result.keys())
     random.shuffle(keys)
     split_index = int(len(keys) * training_ratio)
-    train_keys = keys[:split_index]
+    train_keys = keys
     test_keys = keys[split_index:]
 
     train_data = np.concatenate([result[key] for key in train_keys])

@@ -111,7 +111,6 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                         key = line.split(': ')[0].strip()
                         val = ''.join(line.split(': ')[1:]).strip()
                         tree[cur_node].data[key] = val
-        logger.info(f'len(tree): {len(tree)}')
         return self.__tree2dict(tree, 0)
 
     def fit_transform(self, data, label=None) -> None:
