@@ -8,7 +8,7 @@ def read_sql_from_path(path) -> str:
         query = sql_file.read()
         return query
 
-conn = hive.Connection(host='10.77.110.152', port=10000, username='hejiahao')
+conn = hive.Connection(host='202.112.113.146', port=10000, username='hejiahao')
 cursor = conn.cursor()
 if len(sys.argv) > 1:
     query = read_sql_from_path(sys.argv[1])

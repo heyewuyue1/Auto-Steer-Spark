@@ -154,6 +154,11 @@ def train(model, train_ds, val_ds, crit, \
         logger.info(f'Time: {time.time() - t0}')
         training_losses.append(losses / len(train_ds))
         test_losses.append(val_losses / len(val_ds))
+        if len(training_losses) > 10 and training_losses[-1] < 0.1:
+            last_two = np.min(training_losses[-2:])
+            if last_two > training_losses[-10] or (training_losses[-10] - last_two < 0.0001):
+                logger.info('Stopped training from convergence condition at epoch %s', epoch)
+                break
 
         scheduler.step()   
     # best_model_path = logging(args, epoch, test_scores, filename = 'log.txt', save_model = True, model = model)

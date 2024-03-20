@@ -58,7 +58,7 @@ class PlanTreeDataset(Dataset):
         return self.dicts[idx], (self.cost_labels[idx])
 
     ## pre-process first half of old collator
-    def pre_collate(self, the_dict, max_node=169, rel_pos_max=20, alpha=0):
+    def pre_collate(self, the_dict, max_node=175, rel_pos_max=20, alpha=0):
 
         x = pad_2d_unsqueeze(the_dict['features'], max_node)
         N = len(the_dict['features'])

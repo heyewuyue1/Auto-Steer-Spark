@@ -1,5 +1,6 @@
 playground/
 data/*.pkl
+data/forest.csv
 evaluation/*.pdf
 evaluation/*.csv
 logs/*.log
@@ -9,6 +10,9 @@ results/*.sqlite
 *.DS_Store
 .metals/
 .vscode
+nn/data/_data/*
+nn/data/tpcds_data/*
+nn/model/_model/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

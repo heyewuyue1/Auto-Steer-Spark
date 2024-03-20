@@ -9,32 +9,91 @@ from utils.custom_logging import logger
 from connectors.connector import DBConnector
 from utils.config import read_config
 import configparser
+import pandas as pd
+
+from pyspark.sql import SparkSession
+from connectors import get_rowcount
 
 EXCLUDED_RULES = 'spark.sql.optimizer.excludedRules'
 
 def _postprocess_plan(plan) -> str:
     """Remove random ids from the explained query plan"""
-    # pattern = re.compile(r'\[\d+]||\[plan_id=\d+\]')
-    # plan = re.sub(pattern, '', plan)
-    # lines = plan.split('\n')
-    # is_scan = False
-    # replace_dict = {}
-    # for line in lines:
-    #     if line.startswith('(') and 'Scan' in line:
-    #         table_name = line.split()[-1]
-    #         is_scan = True
-    #     if is_scan and 'Output' in line:
-    #         col_names = line.split('[')[-1][:-1].split(', ')
-    #         for col_name in col_names:
-    #             replace_dict[col_name] = table_name + '.' + col_name
-    # for key, val in replace_dict.items():
-    #     plan = plan.replace(key, val)
-    # pattern = re.compile(r'#\d+L?')
-    # plan = re.sub(pattern, '', plan)
-    # logger.debug('Postprocessed plan: %s', plan)
     pattern = re.compile(r'#\d+L?|\[\d+]||\[plan_id=\d+\]')
     return re.sub(pattern, '', plan)
-    # return plan
+
+def get_table_size(table_size_path):
+    #从csv文件读取一个dataframe，该dataframe的第一列是所有table的名字，第二列是对应的size，返回名字：size字典
+    df = pd.read_csv(table_size_path)
+    table_size_list = df.values.tolist()
+    table_size_dict = {}
+    for i in range(len(table_size_list)):
+        table_size_dict[table_size_list[i][0]] = table_size_list[i][1]
+    for key,item in table_size_dict.items():
+        item = item.split(' ')
+        if item[1] == 'bytes':
+            item[0] = float(item[0])
+        elif item[1] == 'KB':
+            item[0] = float(item[0]) * 1024
+        elif item[1] == 'MB':
+            item[0] = float(item[0]) * 1024 * 1024
+        elif item[1] == 'GB':
+            item[0] = float(item[0]) * 1024 * 1024 * 1024
+        table_size_dict[key] = item[0]
+    return table_size_dict
+
+def check_Broadcast(query,joinhint_knobs):
+    # #获取table-size字典{name：size(bytes)}
+    # table_size_dict = get_table_size('./results/table_size.csv')
+    # #从query中获取主查询from后面的table名字，选择size最小的table，如果size大于10MB，返回False
+    # from_str_list = query.split('\nfrom\n  ')
+    # if len(from_str_list) == 1:
+    #     return False
+    # from_str = from_str_list[1]
+    # for i in range(len(from_str)):
+    #     if from_str[i] == '\n':
+    #         if from_str[i+1] != ' ':
+    #             break
+    # from_str = from_str[:i]
+    # join_table_list = []
+    # join_table_list = from_str.split('\n')
+    # for i in range(len(join_table_list)):
+    #     join_table_list[i] = join_table_list[i].strip()
+    #     if ' ' in join_table_list[i]:
+    #         join_table_list[i] = join_table_list[i].split(' ')[0]
+    #     if join_table_list[i][-1] == ',':
+    #         join_table_list[i] = join_table_list[i][:-1]
+    # #获取要join的表中size最小且在原有table的表
+    # min_size = -1
+    # for table in join_table_list:
+    #     if table not in table_size_dict.keys():
+    #         continue
+    #     if table_size_dict[table] < min_size or min_size == -1:
+    #         min_size_table = table
+    #         min_size = table_size_dict[table]
+    # if min_size == -1:
+    #     return False
+    # if table_size_dict[min_size_table] > 100 * 1024 * 1024:
+    #     return False
+    #找到主查询select的位置，并插入broadcast hint
+    select_index_list = []
+    index = query.find('select\n  ')
+    while index != -1:
+        select_index_list.append(index)
+        index = query.find('select\n  ',index+1)
+    for index in select_index_list:
+        if query[index+9] != ' ':
+            select_main_ind = index
+    broadcast_str = ''
+    for i in range(len(joinhint_knobs)):
+        table_name = joinhint_knobs[i].split(' ')[1]
+        broadcast_str = broadcast_str + table_name + ','
+    broadcast_str = broadcast_str[:-1]
+    try:
+        query = query[:select_main_ind] + 'select /*+ BROADCAST(' +broadcast_str + ') */' + query[select_main_ind+6:] 
+    except Exception as e:
+        logger.error(f'Error when query is {query}, and joinhint is {joinhint_knobs}')
+        return False
+    return query
 
 class SparkConnector(DBConnector):
     """This class implements the AutoSteer-G connector for a Spark cluster accepting SQL statements"""
@@ -51,7 +110,7 @@ class SparkConnector(DBConnector):
             except:
                 logger.warning(f'Atempt {i + 1} Failed to connect to thrift server, retrying...')
         self.cursor = self.conn.cursor()
-    # 
+
     def execute(self, query) -> DBConnector.TimedResult:
         for i in range(3):
             try:
@@ -66,22 +125,49 @@ class SparkConnector(DBConnector):
                     raise
                 else:
                     logger.warning('Execution failed %s times, try again...', str(i + 1))
-        logger.info('QUERY RESULT %s', str(collection)[:100] if len(str(collection)) > 100 else collection)
+        logger.info('QUERY RESULT %s', str(collection)[:100].encode('utf-8') if len(str(collection)) > 100 else collection)
         collection = 'EmptyResult' if len(collection) == 0 else collection[0]
         logger.debug('Hash(QueryResult) = %s', str(hash(str(collection))))
         return DBConnector.TimedResult(collection, elapsed_time_usecs)
 
     def explain(self, query) -> str:
+        '''更改后的explain'''
+        self.execute(f'SET spark.sql.cbo.enabled=true')
+        timed_result_c = self.execute(f'EXPLAIN COST {query}')
         timed_result = self.execute(f'EXPLAIN FORMATTED {query}')
-        return _postprocess_plan(timed_result.result[0])
+        result = get_rowcount.get_explain(timed_result.result[0], timed_result_c.result[0])
 
-    def set_disabled_knobs(self, knobs) -> None:
+        # return _postprocess_plan(timed_result.result[0])
+        return _postprocess_plan(result)
+
+    def set_disabled_knobs(self, knobs, query) -> str:
         """Toggle a list of knobs"""
-        if len(knobs) == 0:
+        binary_knobs = []
+        joinhint_knobs = []
+        for rule in knobs:
+            if 'Broadcast' not in rule:
+                binary_knobs.append(rule) 
+            else:
+                joinhint_knobs.append(rule)
+        if len(binary_knobs) == 0:
             self.cursor.execute(f'RESET {EXCLUDED_RULES}')
         else:
-            formatted_knobs = [f'org.apache.spark.sql.catalyst.optimizer.{rule}' for rule in knobs]
+            formatted_knobs = [f'org.apache.spark.sql.catalyst.optimizer.{rule}' for rule in binary_knobs]
             self.cursor.execute(f'SET {EXCLUDED_RULES}={",".join(formatted_knobs)}')
+        if len(joinhint_knobs) > 0:
+            if 'Broadcast' in joinhint_knobs[0]:
+                new_query = check_Broadcast(query,joinhint_knobs)
+                if new_query != False:
+                    return new_query
+            elif 'Merge' in joinhint_knobs:
+                pass
+            elif 'ShuffleHash' in joinhint_knobs:
+                pass
+            elif 'ShuffleNestedLoop' in joinhint_knobs:
+                pass
+            return query
+        else:
+            return query
 
     def get_knob(self, knob: str) -> bool:
         """Get current status of a knob"""
@@ -105,7 +191,28 @@ class SparkConnector(DBConnector):
         
     @staticmethod
     def get_plan_preprocessor():
-        from inference.preprocessing.preprocess_spark_plans import SparkPlanPreprocessor as complex_preprocessor
-        from inference.preprocessing.preprocess_simple import SparkPlanPreprocessor as simple_preprocessor
-        from inference.preprocessing.preprocess_dose import SparkPlanPreprocessor as dose_preprocessor
-        return dose_preprocessor
+        config = configparser.ConfigParser()
+        config.read('./config.cfg')
+        defaults = config['DEFAULT']
+        if defaults['COST_MODEL'] == 'TCNN':
+            from inference.preprocessing.preprocess_simple_backup import SparkPlanPreprocessor as simple_preprocessor
+            return simple_preprocessor
+        if defaults['COST_MODEL'] == 'DOSE':
+            from inference.preprocessing.preprocess_dose import SparkPlanPreprocessor as dose_preprocessor
+            return dose_preprocessor
+        logger.fatal('Cost model not specified in config.cfg')
+        raise Exception('Cost model not specified in config.cfg')
+
+if __name__ == '__main__':     
+    connector = SparkConnector()
+    knobs = ['PushProjectionThroughUnion','PushProjectionThroughLimit','Broadcast call_center','Broadcast promotion','Broadcast time_dim']
+    broadcast_list = []
+
+    for i in range(103):
+        sql_path = f'./benchmark/queries/tpcds/{i:03d}.sql'
+        with open(sql_path,'r') as file:
+            query = file.read()
+        query = connector.set_disabled_knobs(knobs,query)
+        if 'BROADCAST' in query:
+            broadcast_list.append(i)
+    print(broadcast_list)

@@ -29,7 +29,9 @@ def _load_data(bench=None, training_ratio=0.8):
     x_test = [config.plan_json for config in test_data]
     y_test = [config.walltime for config in test_data]
 
-    return x_train, y_train, x_test, y_test, training_data, test_data
+    # return np.concatenate((x_train, y_train)), np.concatenate((x_train, y_train)), x_test, y_test, training_data, test_data
+    # print(x_test, y_test)
+    return x_train + x_test, y_train + y_test, x_test, y_test, training_data, test_data
 
 
 def _serialize_data(directory, x_train, y_train, x_test, y_test, training_configs, test_configs):
@@ -166,7 +168,7 @@ def train_tcnn(connector, bench: str, retrain: bool, create_datasets: bool):
     else:
         x_train, y_train, x_test, y_test, training_data, test_data = _deserialize_data(data_path)
 
-    performance_test = _choose_best_plans(query_plan_preprocessor, model_name, test_data, is_training=False)
+    # performance_test = _choose_best_plans(query_plan_preprocessor, model_name, test_data, is_training=False)
     performance_training = _choose_best_plans(query_plan_preprocessor, model_name, training_data, is_training=True)
 
     # calculate absolute improvements for test and training sets
@@ -188,5 +190,7 @@ def train_tcnn(connector, bench: str, retrain: bool, create_datasets: bool):
         return results
 
     with open(f'evaluation/results_{DROPOUT}.csv', 'a', encoding='utf-8') as f:
-        f.write(calc_improvements('TEST SET', performance_test))
-        f.write(calc_improvements('TRAINING SET', performance_training))
+        train_text = calc_improvements('TRAINING SET', performance_training)
+        # test_text = calc_improvements('TEST SET', performance_test)
+        # f.write(test_text)
+        f.write(train_text)

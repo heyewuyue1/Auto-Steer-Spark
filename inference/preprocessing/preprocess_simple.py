@@ -6,6 +6,7 @@ from inference.preprocessing.node import Node
 from utils.config import read_config
 import os
 import pickle
+from inference.preprocessing.preprocess_subquery import PlanToTree
 
 class SparkPlanPreprocessor(QueryPlanPreprocessor):
     def __get_op(self, forest):
@@ -48,29 +49,59 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
             return col_name_list
     
     def __featurize_not_null_operator(self, node):
+        '''featurize: op、column、info'''
         arr = np.zeros(len(self.op_list) + 1)
         arr[self.op_list.index(node.operator)] = 1
-        stats = self.__extract_stats(node)
+        stats, info = self.__extract_stats(node)
         stat_arr = np.zeros(len(self.column_list))
         for stat in stats:
             stat_arr[self.column_list.index(stat)] = 1
-        return np.concatenate((arr, stat_arr))
+        return np.concatenate((arr,info))
 
     def __extract_stats(self, node):
+        '''提取explain内容中的node的信息：input、rowcount、size'''
         stats = []
+        info = []
         for key, val in node.data.items():
             if 'Input' in key:
                 input = val[1:-1].split(', ')
                 for i in input:
                     if i in self.column_list and i not in stats:
                         stats.append(i)
-        return stats
+            elif 'Row count' in key:
+                info.append(eval(val))
+            elif 'sizeInBytes' in key:
+                num = eval(val.split(' ')[0])
+                if num == 0: # 写为0（忘记带单位了）
+                    info.append(num)
+                else:   # 有数（带单位）
+                    unit = val.split(' ')[1]
+                    if unit == 'B':
+                        pass
+                    elif unit == 'KiB':
+                        num *= 1024
+                    elif unit == 'MiB':
+                        num *= 1024**2
+                    elif unit == 'GiB':
+                        num *= 1024**3
+                    elif unit == 'TiB':
+                        num *= 1024**4
+                    elif unit == 'PiB':
+                        num *= 1024**5
+                    elif unit == 'EiB':
+                        num *= 1024**6
+                    else:
+                        logger.warning('wrong size' + unit)
+                    info.append(np.log1p(num))
+        return stats,info
 
     def __featurize_null_operator(self):
+        '''np.concatenate((arr, stat, info))'''
         arr = np.zeros(len(self.op_list) + 1)
         arr[-1] = 1  # declare as null vector
         stat = np.zeros(len(self.column_list))
-        return np.concatenate((arr, stat))
+        info = np.zeros(2)
+        return np.concatenate((arr,info))
 
     def __featurize(self, tree, i):
         logger.debug(f'Featurizing node {i} {tree[i].operator}')
@@ -80,19 +111,23 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
 
     def __plan2tree(self, plan):
         if 'Subqueries' in plan:
-            # logger.warning(f'Contain Subqueries, ignored, raw plan: {plan}')
-            return None
+            EE = PlanToTree(plan)
+            return EE
         lines = plan.split('\n')
         node_num = eval(lines[1].split()[-1])
         tree = [None] * (node_num + 1)
+        
         colon = 0  # count the colons to identify the depth of the tree
         join_stack = []
         tree[0] = Node(0, 'root')
         prev_idx = 0
+        
         for node in lines[1: node_num + 1]:
             idx = eval(node.split()[-1])
             op = node.strip().split('- * ')[-1].split('- ')[-1].split(' (')[0]
             op = self.__postprocess_op(op)
+            if 'Scan' in op:
+                op = 'Scan csv'
             if colon <= node.count(':'):
                 tree[prev_idx].lc = idx
             else:
@@ -106,7 +141,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         cur_node = 0
         reused_op_id = 0
         for line in lines[node_num + 1:]:
-            if line != '\n':
+            if line != '\n' and line != '':
                 if line.startswith('('):
                     cur_node = eval(line.split()[0])
                     reused_op_id = eval(line.split(': ')[-1][:-1]) if 'Reused' in line else 0
@@ -121,9 +156,9 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                         key = line.split(': ')[0].strip()
                         val = ''.join(line.split(': ')[1:]).strip()
                         tree[cur_node].data[key] = val
+                        # logger.info('len= '+str(len(tree))+'cur_node='+str(cur_node)+' line:'+line)
         return tree
 
-# 
     def __init__(self):
         super().__init__()
         self.benchmark = read_config()['DEFAULT']['BENCHMARK']
@@ -136,8 +171,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                 self.op_list = self.__get_op(forest)
                 self.column_list = self.__get_col_name(self.benchmark)
                 logger.info(f'Get op_list: {self.op_list}')
-                logger.info(f'Get column_list: {self.column_list}')
-                logger.info(f'Feature length: {len(self.op_list) + len(self.column_list)}')
+                logger.info(f'Feature length: {len(self.op_list) + 2}')
         else:
             logger.info('No existing forest found, waiting for fit to build one')
 
@@ -158,20 +192,20 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
             self.op_list = self.__get_op(forest)
             self.column_list = self.__get_col_name(self.benchmark)
             logger.info(f'Get op_list: {self.op_list}')
-            logger.info(f'Get column_list: {self.column_list}')
-            logger.info(f'Feature length: {len(self.op_list) + len(self.column_list)}')
+            logger.info(f'Feature length: {len(self.op_list) + 2}')
         return forest
     
     def transform(self, trees) -> list:
+        # 【*******】
         forest = []
         for i in range(len(trees)):
             logger.debug(f'Processing plan {i}')
             tree = self.__plan2tree(trees[i])
             if tree is not None:
-                try:
+                # try:
                     featurized_tree = self.__featurize(tree, tree[0].lc)
-                except Exception as e:
-                    logger.error(f'Error in plan {i} message: {e} raw plan: {trees[i]}')
-                    continue
-                forest.append(featurized_tree)
+                # except Exception as e:
+                    # logger.error(f'Error in plan {i} message: {e} raw plan')
+                    # continue
+                    forest.append(featurized_tree)
         return forest    

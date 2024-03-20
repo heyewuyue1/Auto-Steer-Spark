@@ -22,6 +22,7 @@ import torch.nn as nn
 from inference.dose.model import Dose
 
 CUDA = torch.cuda.is_available()
+print(f'Use CUDA: {CUDA}')
 
 def _nn_path(base):
     return os.path.join(base, 'nn_weights')
@@ -318,7 +319,7 @@ class DoseModel:
                 line = line.strip().split(',')
                 column_min_max_vals[line[0]] = (eval(line[1]), eval(line[2]))
 
-        col2idx = self.__tree_transform.get_col_name('tpcds')
+        col2idx = self.__tree_transform.get_col_name()
         self.encoder = Encoding(column_min_max_vals, col2idx)
 
         train_ds = PlanTreeDataset(train_df, self.encoder, self.normalizer)

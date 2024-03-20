@@ -47,3 +47,28 @@ OptimizeCsvJsonExprs
 CombineConcats
 PushdownPredicatesAndPruneColumnsForCTEDef
 ReorderJoin
+Broadcast call_center
+Broadcast catalog_page
+Broadcast catalog_returns
+Broadcast catalog_sales
+Broadcast customer
+Broadcast customer_address
+Broadcast customer_demographics
+Broadcast date_dim
+Broadcast dbgen_version
+Broadcast household_demographics
+Broadcast income_band
+Broadcast inventory
+Broadcast item
+Broadcast promotion
+Broadcast reason
+Broadcast ship_mode
+Broadcast store
+Broadcast store_returns
+Broadcast store_sales
+Broadcast time_dim
+Broadcast warehouse
+Broadcast web_page
+Broadcast web_returns
+Broadcast web_sales
+Broadcast web_site

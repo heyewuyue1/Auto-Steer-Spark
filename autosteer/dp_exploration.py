@@ -34,14 +34,17 @@ def explore_optimizer_configs(connector: connectors.connector.DBConnector, query
 
     hint_set_exploration = HintSetExploration(query_path)
     num_duplicate_plans = 0
+    sql_query_raw = sql_query
     while hint_set_exploration.has_next():
-        connector.set_disabled_knobs(hint_set_exploration.next())
+        sql_query = connector.set_disabled_knobs(hint_set_exploration.next(),sql_query)
         query_plan = connector.explain(sql_query)
         # Check if a new query plan is generated
         if register_query_config_and_measurement(query_path, hint_set_exploration.get_disabled_opts_rules(), query_plan, timed_result=None, initial_call=True):
             num_duplicate_plans += 1
+            sql_query = sql_query_raw
             continue
         execute_hint_set(hint_set_exploration, connector, query_path, sql_query, query_plan)
+        sql_query = sql_query_raw
     logger.info('Found %s duplicated query plans!', num_duplicate_plans)
 
 

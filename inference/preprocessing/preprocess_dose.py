@@ -7,28 +7,21 @@ from utils.config import read_config
 import os
 import pandas as pd
 import json
+from inference.preprocessing.preprocess_subquery import PlanToTree
 
 class SparkPlanPreprocessor(QueryPlanPreprocessor):
-    def get_col_name(self, benchmark) -> dict:
-        with open('./benchmark/schemas/' + benchmark + '.sql', 'r') as schema_text:
+    def get_col_name(self) -> dict:
+        with open('./benchmark/schemas/tpcds_sf1.sql', 'r') as schema_text:
             col_name_list = []
             lines = schema_text.readlines()
-            if benchmark == 'job':
-                for line in lines:
-                    if 'USING' not in line and line != '\n':
-                        if 'CREATE' in line:
-                            table_name = line.split()[-2]
-                        else:
-                            col_name_list.append('job.' + table_name + '.' + line.split()[0])
-            elif benchmark == 'tpcds':
-                for line in lines:
-                    if 'USING' not in line and 'create' not in line != '\n':
-                        col_name = line.split()[0]
-                        alias = col_name.split('_')[0]
-                        col_name_list.append(f'{alias}.{col_name}')
-            col_name_dict = {col_name_list[i]: i for i in range(len(col_name_list))}
-            col_name_dict['NA'] = len(col_name_list)
-            return col_name_dict
+            for line in lines:
+                if 'USING' not in line and 'create' not in line != '\n':
+                    col_name = line.split()[0]
+                    alias = col_name.split('_')[0]
+                    col_name_list.append(f'{alias}.{col_name}')
+        col_name_dict = {col_name_list[i]: i for i in range(len(col_name_list))}
+        col_name_dict['NA'] = len(col_name_list)
+        return col_name_dict
         
     def __postprocess_plan(self, plan) -> str:
         """Remove random ids from the explained query plan"""
@@ -67,7 +60,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                 ret['Hash Cond'] = f'{tree[i].data["Left keys"][1:].split("_")[0]}.{tree[i].data["Left keys"][1: -1]}={tree[i].data["Right keys"][1:].split("_")[0]}.{tree[i].data["Right keys"][1: -1]}'
             except:
                 pass
-        if tree[i].lc is not None and not tree[i].operator == 'Filter':
+        if not tree[i].lc is not None and not tree[i].operator == 'Filter':
             left = self.__tree2dict(tree, tree[i].lc)
             ret['Plans'].append(left)
         if tree[i].rc is not None:
@@ -77,8 +70,8 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
             
     def __plan2tree(self, plan: str) -> dict:
         if 'Subqueries' in plan:
-            # logger.warning(f'Contain Subqueries, ignored, raw plan: {plan}')
-            return None
+            ee = PlanToTree(plan)
+            return self.__tree2dict(ee, 0)
         lines = plan.split('\n')
         node_num = eval(lines[1].split()[-1])
         tree = [None] * (node_num + 1)
@@ -118,6 +111,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                         key = line.split(': ')[0].strip()
                         val = ''.join(line.split(': ')[1:]).strip()
                         tree[cur_node].data[key] = val
+        logger.info(f'len(tree): {len(tree)}')
         return self.__tree2dict(tree, 0)
 
     def fit_transform(self, data, label=None) -> None:

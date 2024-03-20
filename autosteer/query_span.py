@@ -37,8 +37,10 @@ def get_query_plan(args: tuple) -> HintSet:
     connector_type, sql_query, hintset = args
     connector = connector_type()
     knobs = hintset.get_all_knobs()
-    connector.set_disabled_knobs(knobs)
+    sql_query_raw = sql_query
+    sql_query = connector.set_disabled_knobs(knobs,sql_query)
     hintset.plan = connector.explain(sql_query)
+    sql_query = sql_query_raw
     return hintset
 
 
