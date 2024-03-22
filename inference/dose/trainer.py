@@ -6,6 +6,7 @@ import os
 import torch
 from scipy.stats import pearsonr
 from utils.custom_logging import logger
+import memory_profiler
 import time
 
 
@@ -81,11 +82,12 @@ def evaluate(model, ds, bs, norm, device, prints=True):
         print('Corr: ',corr)
     return scores, corr
 
+@memory_profiler.profile
 def train(model, train_ds, val_ds, crit, \
     cost_norm, args, optimizer=None, scheduler=None):
     
-    to_pred, bs, device, epochs, clip_size = \
-        args.to_predict, args.bs, args.device, args.epochs, args.clip_size
+    bs, device, epochs, clip_size = \
+        args.bs, args.device, args.epochs, args.clip_size
     lr = args.lr
 
     if not optimizer:
@@ -104,51 +106,32 @@ def train(model, train_ds, val_ds, crit, \
         losses = 0
         val_losses = 0
         cost_predss = np.empty(0)
-
         model.train()
-
         train_idxs = rng.permutation(len(train_ds))
-        
         for idxs in chunks(train_idxs, bs):
             optimizer.zero_grad()
-
             batch, batch_labels = collator(list(zip(*[train_ds[j] for j in idxs])))
-            # print(batch_labels.shape)
-            # l, r = zip(*(batch_labels))
-            # l = zip(*(batch_labels))
-
             batch_cost_label = torch.FloatTensor(batch_labels).to(device)
-            # batch_cost_label = torch.FloatTensor(l).to(device)
             batch = batch.to(device)
             cost_preds = model(batch)
-            
             cost_preds = cost_preds.squeeze()
             loss = crit(cost_preds, batch_cost_label)
-
             val_batch, val_batch_labels = collator(list(zip(*val_ds)))
             val_batch_cost_label = torch.FloatTensor(val_batch_labels).to(device)
             val_batch = val_batch.to(device)
+            print('!!!')
             val_cost_preds = model(val_batch)
             val_cost_preds = val_cost_preds.squeeze()
             val_loss = crit(val_cost_preds, val_batch_cost_label)
-
             loss.backward()
-
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip_size)
-
             optimizer.step()
             losses += loss.item()
             val_losses += val_loss.item()
             cost_predss = np.append(cost_predss, cost_preds.detach().cpu().numpy())
-
         test_scores, corrs = evaluate(model, val_ds, bs, cost_norm, device, False)
-
         if test_scores['q_mean'] < best_prev: ## mean mse
-            
             best_prev = test_scores['q_mean']
-
-        # if epoch % 20 == 0:
-        # print('Epoch: {}  Avg Loss: {}, Time: {}'.format(epoch, losses / len(train_ds), time.time() - t0))
         logger.info(f'Epoch {epoch} train. loss {losses / len(train_ds)}')
         logger.info(f'Epoch {epoch} val. loss {val_losses / len(val_ds)}')
         logger.info(f'Time: {time.time() - t0}')
@@ -159,9 +142,7 @@ def train(model, train_ds, val_ds, crit, \
             if last_two > training_losses[-10] or (training_losses[-10] - last_two < 0.0001):
                 logger.info('Stopped training from convergence condition at epoch %s', epoch)
                 break
-
         scheduler.step()   
-    # best_model_path = logging(args, epoch, test_scores, filename = 'log.txt', save_model = True, model = model)
     return training_losses, test_losses
 
 

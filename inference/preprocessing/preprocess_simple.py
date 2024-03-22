@@ -3,9 +3,6 @@ import re
 import numpy as np
 from utils.custom_logging import logger
 from inference.preprocessing.node import Node
-from utils.config import read_config
-import os
-import pickle
 from inference.preprocessing.preprocess_subquery import PlanToTree
 
 class SparkPlanPreprocessor(QueryPlanPreprocessor):
@@ -26,49 +23,20 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         """Remove random ids from the explained query plan"""
         pattern = re.compile(r'\(.*\)|\*\ ')
         op = re.sub(pattern, '', op)
-        # if 'Scan' in op:
-        #     return 'Scan'
-        # else:
         return op
-
-    def __get_col_name(self, benchmark) -> list[str]:
-        with open('./benchmark/schemas/' + benchmark + '.sql', 'r') as schema_text:
-            col_name_list = []
-            lines = schema_text.readlines()
-            if benchmark == 'job':
-                for line in lines:
-                    if 'USING' not in line and line != '\n':
-                        if 'CREATE' in line:
-                            table_name = line.split()[-2]
-                        else:
-                            col_name_list.append('job.' + table_name + '.' + line.split()[0])
-            elif benchmark == 'tpcds':
-                for line in lines:
-                    if 'USING' not in line and 'create' not in line != '\n':
-                        col_name_list.append(line.split()[0])
-            return col_name_list
     
     def __featurize_not_null_operator(self, node):
         '''featurize: op、column、info'''
         arr = np.zeros(len(self.op_list) + 1)
         arr[self.op_list.index(node.operator)] = 1
-        stats, info = self.__extract_stats(node)
-        stat_arr = np.zeros(len(self.column_list))
-        for stat in stats:
-            stat_arr[self.column_list.index(stat)] = 1
+        info = self.__extract_stats(node)
         return np.concatenate((arr,info))
 
     def __extract_stats(self, node):
         '''提取explain内容中的node的信息：input、rowcount、size'''
-        stats = []
         info = []
         for key, val in node.data.items():
-            if 'Input' in key:
-                input = val[1:-1].split(', ')
-                for i in input:
-                    if i in self.column_list and i not in stats:
-                        stats.append(i)
-            elif 'Row count' in key:
+            if 'Row count' in key:
                 info.append(eval(val))
             elif 'sizeInBytes' in key:
                 num = eval(val.split(' ')[0])
@@ -93,13 +61,12 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                     else:
                         logger.warning('wrong size' + unit)
                     info.append(np.log1p(num))
-        return stats,info
+        return info
 
     def __featurize_null_operator(self):
         '''np.concatenate((arr, stat, info))'''
         arr = np.zeros(len(self.op_list) + 1)
         arr[-1] = 1  # declare as null vector
-        stat = np.zeros(len(self.column_list))
         info = np.zeros(2)
         return np.concatenate((arr,info))
 
@@ -161,51 +128,27 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
 
     def __init__(self):
         super().__init__()
-        self.benchmark = read_config()['DEFAULT']['BENCHMARK']
-        self.op_list, self.column_list = [], []
-        if os.path.isfile('./data/forest.pkl'):
-            logger.info('__init__: loading forest...')
-            with open('./data/forest.pkl', 'rb') as f:
-                forest = pickle.load(f)
-                logger.info('Loaded forest')
-                self.op_list = self.__get_op(forest)
-                self.column_list = self.__get_col_name(self.benchmark)
-                logger.info(f'Get op_list: {self.op_list}')
-                logger.info(f'Feature length: {len(self.op_list) + 2}')
-        else:
-            logger.info('No existing forest found, waiting for fit to build one')
+        self.op_list= []
+        self.forest = []
 
     def fit(self, trees) -> None:
-        if not os.path.isfile('./data/forest.pkl'):
-            logger.info('Building forest...')
-            forest = []
-            for i in range(len(trees)):
-                logger.debug(f'Processing plan {i}')
-                tree = self.__plan2tree(trees[i])
-                if tree is not None:
-                    forest.append(tree)
-            with open('./data/forest.pkl', 'wb') as f:
-                pickle.dump(forest, f)
-        with open('./data/forest.pkl', 'rb') as f:
-            logger.info('fit: loading forest...')
-            forest = pickle.load(f)
-            self.op_list = self.__get_op(forest)
-            self.column_list = self.__get_col_name(self.benchmark)
-            logger.info(f'Get op_list: {self.op_list}')
-            logger.info(f'Feature length: {len(self.op_list) + 2}')
-        return forest
+        logger.info('Building forest...')
+        for i in range(len(trees)):
+            logger.debug(f'Processing plan {i}')
+            tree = self.__plan2tree(trees[i])
+            if tree is not None:
+                self.forest.append(tree)
+        self.op_list = self.__get_op(self.forest)
+        logger.info(f'Get op_list: {self.op_list}')
+        logger.info(f'Feature length: {len(self.op_list) + 2}')
+        return self.forest
     
     def transform(self, trees) -> list:
-        # 【*******】
         forest = []
         for i in range(len(trees)):
             logger.debug(f'Processing plan {i}')
             tree = self.__plan2tree(trees[i])
             if tree is not None:
-                # try:
-                    featurized_tree = self.__featurize(tree, tree[0].lc)
-                # except Exception as e:
-                    # logger.error(f'Error in plan {i} message: {e} raw plan')
-                    # continue
-                    forest.append(featurized_tree)
+                featurized_tree = self.__featurize(tree, tree[tree[0].lc].lc)
+                forest.append(featurized_tree)
         return forest    

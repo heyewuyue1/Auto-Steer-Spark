@@ -1,8 +1,7 @@
 playground/
 data/*.pkl
 data/forest.csv
-evaluation/*.pdf
-evaluation/*.csv
+evaluation/*
 logs/*.log
 logs/*.code*
 *.dylib

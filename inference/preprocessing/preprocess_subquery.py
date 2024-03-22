@@ -2,13 +2,6 @@ import re
 from utils.custom_logging import logger
 from inference.preprocessing.node import Node
 
-# def extract_Info(node):
-#     stats = []
-#     # for key, val in node.data.items():
-#     #     if 'Input' in key:
-            
-#     return 
-
 def postprocess_op( op) -> str:
         """Remove random ids from the explained query plan"""
         pattern = re.compile(r'\(.*\)|\*\ ')
@@ -22,6 +15,7 @@ def postprocess_plan( plan) -> str:
         """Remove random ids from the explained query plan"""
         pattern = re.compile(r'#\d+L?|\[\d+]||\[plan_id=\d+\]')
         return re.sub(pattern, '', plan)
+
 #子树向主树转接
 def preorder_traversal(tree,root,i):
     if i is None:
@@ -148,11 +142,7 @@ def Str_Sub_Tree(max_number,node_num,lines):
     tree[0] = Node(0, 'root')
     prev_idx = 0
     for node in lines[1: node_num + 1]:
-        # if str(node.split()[-1]) >='a' and str(node.split()[-1]) <='z':
-        #     break
-        # idx  = eval(node.split()[-1])
         pattern = r" \((\d+)\)"
-            # cur_node = eval(line.split()[0])
         match = re.search(pattern,node)
         if not match:
             continue
@@ -160,9 +150,8 @@ def Str_Sub_Tree(max_number,node_num,lines):
             idx = eval(match.group(1))
         op = node.strip().split('- * ')[-1].split('- ')[-1].split(' (')[0]
         op =postprocess_op(op)
-
-        # if 'Scan' in op:
-        #     op = 'Scan csv'
+        if 'Scan' in op:
+            op = 'Scan csv'
         if colon <= node.count(':'):
             tree[prev_idx].lc = idx
         else:

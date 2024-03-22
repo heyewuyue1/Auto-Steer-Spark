@@ -1,10 +1,7 @@
 from inference.preprocessing.preprocessor import QueryPlanPreprocessor
 import re
-import numpy as np
 from utils.custom_logging import logger
 from inference.preprocessing.node import Node
-from utils.config import read_config
-import os
 import pandas as pd
 import json
 from inference.preprocessing.preprocess_subquery import PlanToTree
@@ -60,7 +57,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                 ret['Hash Cond'] = f'{tree[i].data["Left keys"][1:].split("_")[0]}.{tree[i].data["Left keys"][1: -1]}={tree[i].data["Right keys"][1:].split("_")[0]}.{tree[i].data["Right keys"][1: -1]}'
             except:
                 pass
-        if not tree[i].lc is not None and not tree[i].operator == 'Filter':
+        if tree[i].lc is not None and not (tree[i].operator == 'Filter' and 'Scan' in tree[tree[i].lc].operator):
             left = self.__tree2dict(tree, tree[i].lc)
             ret['Plans'].append(left)
         if tree[i].rc is not None:

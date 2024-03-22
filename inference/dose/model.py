@@ -41,7 +41,7 @@ class Prediction(nn.Module):
 
 
 class FeatureEmbed(nn.Module):
-    def __init__(self, embed_size=32, tables = 35, types=18, joins = 133, columns= 429, \
+    def __init__(self, embed_size=32, tables = 35, types=18, joins = 152, columns= 429, \
                  ops=8, pos=4, bin_number = 50):
         super(FeatureEmbed, self).__init__()
 
@@ -134,13 +134,7 @@ class FeatureEmbed(nn.Module):
         ## get Filters, then apply mask
         torch.set_printoptions(profile="full")
         torch.set_printoptions(sci_mode=False)
-        # print(filtersId[0])
-        # print(filtersMask[:100])
-        # print('filterId shape:',filtersId.shape)
         filterExpand = filtersId.view(-1, 3, 20)
-        # print('filterExpand shape:',filterExpand.shape)
-        # print(filterExpand[0])
-        # filterExpand = filtersId.view(-1, 3, 3).transpose(1, 2)
         colsId = filterExpand[:, 0, :].long()
         opsId = filterExpand[:, 1, :].long()
         vals = filterExpand[:, 2, :].unsqueeze(-1)  # b by 3 by 1
@@ -152,8 +146,7 @@ class FeatureEmbed(nn.Module):
         except:
             print(colsId)
 
-        
-        # print('opsId shape:',opsId.shape)
+    
         try:
             op = self.opEmbed(opsId)
         except:
@@ -172,11 +165,6 @@ class FeatureEmbed(nn.Module):
         avg = total / (num_filters.view(-1, 1) + 1e-8)
 
         return avg
-
-
-#     def get_output_size(self):
-#         size = self.embed_size * 5 + self.embed_size // 8 + 1
-#         return size
 
 
 class Dose(nn.Module):
@@ -217,7 +205,7 @@ class Dose(nn.Module):
 
     def forward(self, batched_data):
         
-        attn_bias, rel_pos, x = batched_data.attn_bias, batched_data.rel_pos, batched_data.x
+        attn_bias, x = batched_data.attn_bias, batched_data.x
 
         heights = batched_data.heights
 

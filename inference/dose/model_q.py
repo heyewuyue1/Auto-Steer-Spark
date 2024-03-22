@@ -255,7 +255,6 @@ class Args:
     sch_decay = 0.6
     device = 'cpu'
     newpath = './results/full/cost/'
-    to_predict = 'cost'
 
 class DoseModel:
 

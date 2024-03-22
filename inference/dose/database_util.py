@@ -2,9 +2,23 @@ import numpy as np
 import pandas as pd
 import csv
 import torch
+from collections import deque
 
 
 ## bfs shld be enough
+def bfs(N, pc_dict, rel_pos_max):
+    distance_matrix = np.full((N, N), True)
+    for start_node in range(N):
+        queue = deque([(start_node, 0)])  # node, distance
+        while queue:
+            node, distance = queue.popleft()
+            for end_node in pc_dict[node]:
+                if distance + 1 < rel_pos_max:
+                    distance_matrix[start_node][end_node] = False
+                queue.append((end_node, distance + 1))
+        distance_matrix[start_node][start_node] = False
+    return distance_matrix
+
 def floyd_warshall_rewrite(adjacency_matrix):
     (nrows, ncols) = adjacency_matrix.shape
     assert nrows == ncols
@@ -137,21 +151,20 @@ def freq2bin(freqs, target_number):
 
 class Batch():
 
-    def __init__(self, attn_bias, rel_pos, heights, x, y=None):
+    def __init__(self, attn_bias, heights, x, y=None):
         super(Batch, self).__init__()
 
         self.heights = heights
         self.x, self.y = x, y
         self.attn_bias = attn_bias
-        self.rel_pos = rel_pos
 
     def to(self, device):
 
         self.heights = self.heights.to(device)
         self.x = self.x.to(device)
 
-        self.attn_bias, self.rel_pos = self.attn_bias.to(
-            device), self.rel_pos.to(device)
+        self.attn_bias = self.attn_bias.to(
+            device)
 
         return self
 
@@ -207,10 +220,10 @@ def collator(small_set):
     num_graph = len(y)
     x = torch.cat(xs)
     attn_bias = torch.cat([s['attn_bias'] for s in small_set[0]])
-    rel_pos = torch.cat([s['rel_pos'] for s in small_set[0]])
+    # rel_pos = torch.cat([s['rel_pos'] for s in small_set[0]])
     heights = torch.cat([s['heights'] for s in small_set[0]])
 
-    return Batch(attn_bias, rel_pos, heights, x), y
+    return Batch(attn_bias, heights, x), y
 
 
 def filterDict2Hist(hist_file, filterDict, encoding):

@@ -7,11 +7,8 @@ import time
 import re
 from utils.custom_logging import logger
 from connectors.connector import DBConnector
-from utils.config import read_config
 import configparser
 import pandas as pd
-
-from pyspark.sql import SparkSession
 from connectors import get_rowcount
 
 EXCLUDED_RULES = 'spark.sql.optimizer.excludedRules'
@@ -42,39 +39,6 @@ def get_table_size(table_size_path):
     return table_size_dict
 
 def check_Broadcast(query,joinhint_knobs):
-    # #获取table-size字典{name：size(bytes)}
-    # table_size_dict = get_table_size('./results/table_size.csv')
-    # #从query中获取主查询from后面的table名字，选择size最小的table，如果size大于10MB，返回False
-    # from_str_list = query.split('\nfrom\n  ')
-    # if len(from_str_list) == 1:
-    #     return False
-    # from_str = from_str_list[1]
-    # for i in range(len(from_str)):
-    #     if from_str[i] == '\n':
-    #         if from_str[i+1] != ' ':
-    #             break
-    # from_str = from_str[:i]
-    # join_table_list = []
-    # join_table_list = from_str.split('\n')
-    # for i in range(len(join_table_list)):
-    #     join_table_list[i] = join_table_list[i].strip()
-    #     if ' ' in join_table_list[i]:
-    #         join_table_list[i] = join_table_list[i].split(' ')[0]
-    #     if join_table_list[i][-1] == ',':
-    #         join_table_list[i] = join_table_list[i][:-1]
-    # #获取要join的表中size最小且在原有table的表
-    # min_size = -1
-    # for table in join_table_list:
-    #     if table not in table_size_dict.keys():
-    #         continue
-    #     if table_size_dict[table] < min_size or min_size == -1:
-    #         min_size_table = table
-    #         min_size = table_size_dict[table]
-    # if min_size == -1:
-    #     return False
-    # if table_size_dict[min_size_table] > 100 * 1024 * 1024:
-    #     return False
-    #找到主查询select的位置，并插入broadcast hint
     select_index_list = []
     index = query.find('select\n  ')
     while index != -1:
@@ -110,6 +74,7 @@ class SparkConnector(DBConnector):
             except:
                 logger.warning(f'Atempt {i + 1} Failed to connect to thrift server, retrying...')
         self.cursor = self.conn.cursor()
+        self.cursor.execute('SET spark.sql.cbo.enabled=true')
 
     def execute(self, query) -> DBConnector.TimedResult:
         for i in range(3):
@@ -131,8 +96,6 @@ class SparkConnector(DBConnector):
         return DBConnector.TimedResult(collection, elapsed_time_usecs)
 
     def explain(self, query) -> str:
-        '''更改后的explain'''
-        self.execute(f'SET spark.sql.cbo.enabled=true')
         timed_result_c = self.execute(f'EXPLAIN COST {query}')
         timed_result = self.execute(f'EXPLAIN FORMATTED {query}')
         result = get_rowcount.get_explain(timed_result.result[0], timed_result_c.result[0])
@@ -195,7 +158,7 @@ class SparkConnector(DBConnector):
         config.read('./config.cfg')
         defaults = config['DEFAULT']
         if defaults['COST_MODEL'] == 'TCNN':
-            from inference.preprocessing.preprocess_simple_backup import SparkPlanPreprocessor as simple_preprocessor
+            from inference.preprocessing.preprocess_simple import SparkPlanPreprocessor as simple_preprocessor
             return simple_preprocessor
         if defaults['COST_MODEL'] == 'DOSE':
             from inference.preprocessing.preprocess_dose import SparkPlanPreprocessor as dose_preprocessor

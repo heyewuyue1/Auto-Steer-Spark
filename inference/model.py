@@ -141,8 +141,8 @@ class BaoRegressionModel:
         pairs = list(zip(x_train, y_train))
         pairs_test = list(zip(x_test, y_test))
 
-        dataset_train = DataLoader(pairs, batch_size=16, shuffle=True, collate_fn=collate)
-        dataset_test = DataLoader(pairs_test, batch_size=16, shuffle=True, collate_fn=collate)
+        dataset_train = DataLoader(pairs, batch_size=32, shuffle=True, collate_fn=collate)
+        dataset_test = DataLoader(pairs_test, batch_size=32, shuffle=True, collate_fn=collate)
 
         # determine the initial number of channels
         for inp, _ in dataset_train:

@@ -4,7 +4,7 @@ import numpy as np
 import json
 import pandas as pd
 import sys, os
-from collections import deque
+from collections import deque, defaultdict
 from .database_util import *
 
 
@@ -38,7 +38,7 @@ class PlanTreeDataset(Dataset):
     def js_node2dict(self, idx, node):
         treeNode = self.traversePlan(node, idx, self.encoding)
         _dict = self.node2dict(treeNode)
-        collated_dict = self.pre_collate(_dict)
+        collated_dict = self.pre_collate(_dict, 500)
 
         self.treeNodes.clear()
         del self.treeNodes[:]
@@ -57,13 +57,32 @@ class PlanTreeDataset(Dataset):
     def old_getitem(self, idx):
         return self.dicts[idx], (self.cost_labels[idx])
 
+    def pre_collate(self, the_dict, max_node, rel_pos_max=20, alpha=0):
+        x = pad_2d_unsqueeze(the_dict['features'], max_node)
+        N = len(the_dict['features'])
+        attn_bias = torch.zeros([N + 1, N + 1], dtype=torch.float)
+        pc_dict = the_dict['pc_dict']
+        assert len(pc_dict) != 0
+        distance_matrix = bfs(N ,pc_dict, rel_pos_max)
+        attn_bias[1:, 1:] = torch.from_numpy(distance_matrix).float() * alpha + (1 - torch.from_numpy(distance_matrix).float())
+        attn_bias[0, :] = 1
+        attn_bias[:, 0] = alpha
+        attn_bias[0, 0] = 1
+        attn_bias = pad_attn_bias_unsqueeze(attn_bias, max_node + 1, alpha)
+        heights = pad_1d_unsqueeze(the_dict['heights'], max_node)
+        return {
+            'x': x,
+            'attn_bias': attn_bias,
+            'heights': heights
+        }
+
     ## pre-process first half of old collator
-    def pre_collate(self, the_dict, max_node=175, rel_pos_max=20, alpha=0):
+    @DeprecationWarning
+    def __pre_collate(self, the_dict, max_node=800, rel_pos_max=20, alpha=0):
 
         x = pad_2d_unsqueeze(the_dict['features'], max_node)
         N = len(the_dict['features'])
         attn_bias = torch.zeros([N + 1, N + 1], dtype=torch.float)
-
         edge_index = the_dict['adjacency_list'].t()
         if len(edge_index) == 0:
             shortest_path_result = np.array([[0]])
@@ -96,11 +115,13 @@ class PlanTreeDataset(Dataset):
 
         adj_list, num_child, features = self.topo_sort(treeNode)
         heights = self.calculate_height(adj_list, len(features))
-
+        pc_dict = defaultdict(list)
+        for parent, child in adj_list:
+            pc_dict[parent].append(child)
         return {
             'features': torch.FloatTensor(np.array(features)),
             'heights': torch.LongTensor(heights),
-            'adjacency_list': torch.LongTensor(np.array(adj_list)),
+            'pc_dict': pc_dict,
         }
 
     def topo_sort(self, root_node):

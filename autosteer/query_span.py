@@ -44,7 +44,7 @@ def get_query_plan(args: tuple) -> HintSet:
     return hintset
 
 
-def approximate_query_span(connector_type, sql_query: str, get_json_query_plan, find_alternative_knobs=False, batch_wise=False) -> list[HintSet]:
+def approximate_query_span(connector_type, sql_query: str, get_json_query_plan, find_alternative_knobs=False, batch_wise=False) -> list:
     # Create singleton hint-sets
     knobs = np.array(connector_type.get_knobs())
     hint_sets = np.array([HintSet({knob}, None) for knob in knobs])
