@@ -1,4 +1,10 @@
-with open('logs/2024-03-21-17-46-54.log') as f:
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('path')
+args = parser.parse_args()
+
+with open(args.path) as f:
     lines = f.readlines()
     best_possible = 0
     default = 0

@@ -4,7 +4,7 @@ from utils.custom_logging import logger
 from inference.preprocessing.node import Node
 import pandas as pd
 import json
-from inference.preprocessing.preprocess_subquery import PlanToTree
+from inference.preprocessing.preprocess_subquery_backup import PlanToTree
 
 class SparkPlanPreprocessor(QueryPlanPreprocessor):
     def get_col_name(self) -> dict:

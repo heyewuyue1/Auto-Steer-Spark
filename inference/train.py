@@ -25,14 +25,19 @@ class AutoSteerInferenceException(Exception):
     pass
 
 
-def _load_data(bench=None, training_ratio=0.8):
+def _load_data(bench=None, training_ratio=0.8, ltr=False):
     """Load the training and test data for a specific benchmark"""
-    training_data, test_data = storage.experience(bench, training_ratio)
-
-    x_train = [config.plan_json for config in training_data]
-    y_train = [config.walltime for config in training_data]
-    x_test = [config.plan_json for config in test_data]
-    y_test = [config.walltime for config in test_data]
+    training_data, test_data = storage.experience(bench, training_ratio, ltr)
+    if ltr:
+        x_train = {k: [i.plan_json for i in training_data[k]] for k in training_data}
+        y_train = {k: [i.walltime for i in training_data[k]] for k in training_data}
+        x_test = {k: [i.plan_json for i in training_data[k]] for k in test_data}
+        y_test = {k: [i.walltime for i in training_data[k]] for k in test_data}
+    else:
+        x_train = [config.plan_json for config in training_data]
+        y_train = [config.walltime for config in training_data]
+        x_test = [config.plan_json for config in test_data]
+        y_test = [config.walltime for config in test_data]
 
     return x_train, y_train, x_test, y_test, training_data, test_data
 
@@ -70,7 +75,7 @@ def _deserialize_data(directory):
     return x_train, y_train, x_test, y_test, training_configs, test_configs
 
 
-def _train_and_save_model(preprocessor, filename, x_train, y_train, x_test, y_test):
+def _train_and_save_model(preprocessor, filename, x_train, y_train, x_test, y_test, ltr=False):
     logger.info('training samples: %s, test samples: %s', len(x_train), len(x_test))
 
     if not x_train:
@@ -83,7 +88,7 @@ def _train_and_save_model(preprocessor, filename, x_train, y_train, x_test, y_te
         regression_model = model_q.DoseModel(preprocessor)
     if defaults['COST_MODEL'] == 'TCNN':
         regression_model = model.BaoRegressionModel(preprocessor)
-    losses = regression_model.fit(x_train, y_train, x_test, y_test)
+    losses = regression_model.fit(x_train, y_train, x_test, y_test, ltr=ltr)
     regression_model.save(filename)
 
     return regression_model, losses
@@ -152,20 +157,20 @@ def _choose_best_plans(query_plan_preprocessor, filename: str, test_configs: lis
     return list(reversed(sorted(performance_predictions, key=lambda entry: entry.selected_plan_relative_improvement)))
 
 
-def train_tcnn(connector, bench: str, retrain: bool, create_datasets: bool):
+def train_tcnn(connector, bench: str, retrain: bool, create_datasets: bool, ltr: bool=False):
     query_plan_preprocessor = connector.get_plan_preprocessor()()
     model_name = f'nn/model/{bench.split("/")[-1]}_model'
     data_path = f'nn/data/{bench.split("/")[-1]}_data'
 
     if create_datasets:
-        x_train, y_train, x_test, y_test, training_data, test_data = _load_data(bench, training_ratio=0.8)
+        x_train, y_train, x_test, y_test, training_data, test_data = _load_data(bench, training_ratio=0.8, ltr=ltr)
         _serialize_data(data_path, x_train, y_train, x_test, y_test, training_data, test_data)
     else:
         x_train, y_train, x_test, y_test, training_data, test_data = _deserialize_data(data_path)
         logger.info('training samples: %s, test samples: %s', len(x_train), len(x_test))
 
     if retrain:
-        _, (training_loss, test_loss) = _train_and_save_model(query_plan_preprocessor, model_name, x_train, y_train, x_test, y_test)
+        _, (training_loss, test_loss) = _train_and_save_model(query_plan_preprocessor, model_name, x_train, y_train, x_test, y_test, ltr=ltr)
         plt.plot(range(len(training_loss)), training_loss, label='training')
         plt.plot(range(len(test_loss)), test_loss, label='test')
         plt.savefig(f'evaluation/losses_1dropout_{DROPOUT}.pdf')
@@ -174,6 +179,7 @@ def train_tcnn(connector, bench: str, retrain: bool, create_datasets: bool):
         x_train, y_train, x_test, y_test, training_data, test_data = _deserialize_data(data_path)
 
     # performance_test = _choose_best_plans(query_plan_preprocessor, model_name, test_data, is_training=False)
+    training_data, _ = storage.experience(bench)
     performance_training = _choose_best_plans(query_plan_preprocessor, model_name, training_data, is_training=True)
 
     # calculate absolute improvements for test and training sets

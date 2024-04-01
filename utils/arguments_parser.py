@@ -14,4 +14,5 @@ def get_parser():
     parser.add_argument('--database', help='Which database connector should be used', type=str)
     parser.add_argument('--benchmark', help='path to a directory with SQL files', type=str)
     parser.add_argument('--explain', help='explain the query', action='store_true')
+    parser.add_argument('--ltr', help='use learning to rank', action='store_true')
     return parser

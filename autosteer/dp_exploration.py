@@ -54,9 +54,9 @@ def execute_hint_set(config: HintSetExploration, connector: connectors.connector
         try:
             timed_result = connector.execute(sql_query)
         # pylint: disable=broad-except
-        except Exception as e:
-            logger.fatal('Optimizer %s cannot be disabled for %s  - skip this config. Error: %s', config.get_disabled_opts_rules(), query_path, e)
-            break
+        except:
+            logger.fatal('Optimizer %s cannot be disabled for %s  - setting elapse time to 120_000_000.', config.get_disabled_opts_rules(), query_path)
+            timed_result = connector.TimedResult('TIMEOUT', 120_000_000)
 
         if register_query_config_and_measurement(query_path, config.get_disabled_opts_rules(), query_plan, timed_result):
             logger.info('config results in already known query plan!')

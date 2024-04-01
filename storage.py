@@ -120,7 +120,7 @@ class Measurement:
         self.walltime = walltime
 
 
-def experience(benchmark=None, training_ratio=0.8):
+def experience(benchmark=None, training_ratio=0.8, ltr=False):
     """Get experience to train a neural network"""
     stmt = """SELECT qu.query_path, q.query_id, q.id,  q.disabled_rules, q.num_disabled_rules, q.query_plan, median(walltime)
             FROM measurements m, query_optimizer_configs q, queries qu
@@ -149,8 +149,13 @@ def experience(benchmark=None, training_ratio=0.8):
     train_keys = keys
     test_keys = keys[split_index:]
 
-    train_data = np.concatenate([result[key] for key in train_keys])
-    test_data = np.concatenate([result[key] for key in test_keys])
+    if ltr:
+        train_data = result
+        test_data = {k: result[k] for k in test_keys}
+
+    else:
+        train_data = np.concatenate([result[key] for key in train_keys])
+        test_data = np.concatenate([result[key] for key in test_keys])
 
     return train_data, test_data
 

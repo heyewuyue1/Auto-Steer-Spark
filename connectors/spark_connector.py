@@ -77,7 +77,8 @@ class SparkConnector(DBConnector):
         self.cursor.execute('SET spark.sql.cbo.enabled=true')
 
     def execute(self, query) -> DBConnector.TimedResult:
-        for i in range(3):
+        max_retry = eval(self.config['DEFAULT']['MAX_RETRY'])
+        for i in range(max_retry):
             try:
                 begin = time.time_ns()
                 self.cursor.execute(query)
@@ -85,8 +86,8 @@ class SparkConnector(DBConnector):
                 elapsed_time_usecs = int((time.time_ns() - begin) / 1_000)
                 break
             except:
-                if i == 2:
-                    logger.fatal('Execution failed 3 times.')
+                if i == max_retry - 1:
+                    logger.fatal(f'Execution failed {max_retry} times.')
                     raise
                 else:
                     logger.warning('Execution failed %s times, try again...', str(i + 1))

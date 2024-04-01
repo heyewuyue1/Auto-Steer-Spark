@@ -28,15 +28,14 @@ def approx_query_span_and_run(connector: Type[connectors.connector.DBConnector],
     explore_optimizer_configs(connector, f'{benchmark}/{query}')
 
 
-def inference_mode(connector, benchmark: str, retrain: bool, create_datasets: bool):
-    train_tcnn(connector, benchmark, retrain, create_datasets)
+def inference_mode(connector, benchmark: str, retrain: bool, create_datasets: bool, ltr: bool):
+    train_tcnn(connector, benchmark, retrain, create_datasets, ltr=ltr)
 
 def check_and_load_database():
     database = default['BENCHMARK']
     logger.info(f'check and load database {database}...')
     conn = hive.Connection(host=default['THRIFT_SERVER_URL'], port=default['THRIFT_PORT'], username=default['THRIFT_USERNAME'])
     cursor = conn.cursor()
-    # cursor.execute(f'DROP DATABASE IF EXISTS {database} CASCADE')
     cursor.execute(f'CREATE DATABASE IF NOT EXISTS {database}')
     cursor.execute(f'USE {database}')
     with open(f'./benchmark/schemas/{database}.sql', 'r') as f:
@@ -62,12 +61,12 @@ if __name__ == '__main__':
         sys.exit(1)
     if args.inference:
         logger.info('Run AutoSteer\'s inference mode')
-        inference_mode(ConnectorType, args.benchmark, args.retrain, args.create_datasets)
+        inference_mode(ConnectorType, args.benchmark, args.retrain, args.create_datasets, args.ltr)
     elif args.training:
         logger.info('Run AutoSteer\'s training mode')
         f_list = sorted(os.listdir(args.benchmark))
-        logger.info('Found the following SQL files: %s', f_list)
-        for query in tqdm(f_list):
+        logger.info('Found the following SQL files: %s', f_list[78: ])
+        for query in tqdm(f_list[78: ]):
             logger.info('run Q%s...', query)
             approx_query_span_and_run(ConnectorType, args.benchmark, query)
         most_frequent_knobs = storage.get_most_disabled_rules()
