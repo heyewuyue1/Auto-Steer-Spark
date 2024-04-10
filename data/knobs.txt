@@ -26,15 +26,10 @@ OptimizeRand
 ConstantFolding
 EliminateAggregateFilter
 ReorderAssociativeOperator
-LikeSimplification
 BooleanSimplification
-SimplifyConditionals
-PushFoldableIntoBranches
 RemoveDispensableExpressions
 SimplifyBinaryComparison
-ReplaceNullWithFalseInPredicate
 PruneFilters
-SimplifyCasts
 SimplifyCaseConversionExpressions
 EliminateSerialization
 RemoveRedundantAliases
@@ -44,7 +39,6 @@ RemoveNoopOperators
 OptimizeUpdateFields
 SimplifyExtractValueOps
 OptimizeCsvJsonExprs
-CombineConcats
 PushdownPredicatesAndPruneColumnsForCTEDef
 ReorderJoin
 Broadcast call_center
