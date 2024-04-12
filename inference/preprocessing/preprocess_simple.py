@@ -4,6 +4,14 @@ import numpy as np
 from utils.custom_logging import logger
 from inference.preprocessing.node import Node
 from inference.preprocessing.preprocess_subquery import PlanToTree
+import configparser
+
+config = configparser.ConfigParser()
+config.read('config.cfg')
+default = config['DEFAULT']
+
+USE_HIST = True if 'TRUE' == default['USE_HIST'] else False
+
 
 class SparkPlanPreprocessor(QueryPlanPreprocessor):
     def __get_op(self, forest):
@@ -33,7 +41,7 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
         return np.concatenate((arr,info))
 
     def __extract_stats(self, node):
-        '''提取explain内容中的node的信息：input、rowcount、size'''
+        '''提取explain内容中的node的信息：input、rowcount、size、hist[设max_len为250]'''
         info = []
         for key, val in node.data.items():
             if 'Row count' in key:
@@ -61,13 +69,24 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                     else:
                         logger.warning('wrong size' + unit)
                     info.append(np.log1p(num))
+            elif 'Hist' in key:
+                hist = eval(val)
+                if len(hist)<250:
+                    padded_hist = hist + [0] * (250 - len(hist))
+                else:
+                    padded_hist = hist[:250]
+        if USE_HIST:
+            return np.concatenate((info,padded_hist))
         return info
 
     def __featurize_null_operator(self):
         '''np.concatenate((arr, stat, info))'''
         arr = np.zeros(len(self.op_list) + 1)
         arr[-1] = 1  # declare as null vector
-        info = np.zeros(2)
+        if USE_HIST:
+            info = np.zeros(2 + 250)
+        else:
+            info = np.zeros(2)
         return np.concatenate((arr,info))
 
     def __featurize(self, tree, i):
@@ -140,7 +159,12 @@ class SparkPlanPreprocessor(QueryPlanPreprocessor):
                 self.forest.append(tree)
         self.op_list = self.__get_op(self.forest)
         logger.info(f'Get op_list: {self.op_list}')
-        logger.info(f'Feature length: {len(self.op_list) + 2}')
+        if USE_HIST:
+            logger.info('Using histogram')
+            logger.info(f'Feature length: {len(self.op_list) + 2 + 250}')
+        else:
+            logger.info('Not using histogram')
+            logger.info(f'Feature length: {len(self.op_list) + 2}')
         return self.forest
     
     def transform(self, trees) -> list:
